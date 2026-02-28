@@ -27,3 +27,10 @@ SESSION: 2026-02-28 12:40  |  Result: AI won
 - Predictable linear movement patterns; AI successfully predicted intercept positions repeatedly throughout match.
 - Favours map centre and diagonal movement; occasionally trapped near edges during retreats.
 - Telegraphed trajectories make interception trivial; lacks erratic strafing to break AI's prediction accuracy.
+════════════════════════════════════════════════════════════
+SESSION: 2026-02-28 12:47  |  Result: AI won
+- Constantly mobile, moving horizontally across map center; rarely camps or holds ground
+- Continuous spray fire when weapon ready; aggressive volume-based damage approach, minimal patience
+- Reactive dodging only when bullets close (~120px); poor anticipation of incoming threats
+- Prefers open center-map positioning; gets trapped at edges, avoids corner holds
+- Predictable linear paths allow easy interception; vulnerable to ambush during reloads

@@ -43,34 +43,74 @@ FPS          = 60
 TITLE        = "RETRO SHOOTER — Human vs AI"
 
 PLAYER_SPEED = 200   # px/s
-BOT_SPEED    = 230   # px/s  — AI is faster than the player
 BULLET_SPEED = 420   # px/s
 BULLET_R     = 5     # radius px
 PLAYER_R     = 16    # collision radius px
 BOT_R        = 16
 SHOOT_COOLDOWN = 0.22  # seconds between shots (player)
-BOT_SHOOT_COOLDOWN = 0.14  # seconds between shots (bot — fires faster)
 DAMAGE       = 10
 MAX_HP       = 100
-PREDICT_T    = 0.35   # seconds ahead for bot's enemy prediction (longer look-ahead)
 
-# ── Color palette (retro) ────────────────────────────────────────────────────
-C_BG         = (10,  10,  20)
-C_WALL       = (40,  40,  80)
-C_WALL_EDGE  = (70,  70, 130)
-C_PLAYER     = (50, 200, 255)
-C_PLAYER_DARK= (20, 100, 140)
-C_BOT        = (255,  60,  60)
-C_BOT_DARK   = (140,  20,  20)
-C_PBULLET    = (100, 220, 255)
-C_BBULLET    = (255, 100,  50)
-C_HP_GREEN   = (50,  220,  80)
-C_HP_RED     = (220,  50,  50)
-C_HP_BG      = (30,   30,  30)
-C_TEXT       = (200, 200, 200)
-C_GOLD       = (255, 200,  50)
-C_FLASH_HIT  = (255,  80,  80)
-C_THINKING   = (180, 255, 180)
+# ── Difficulty Levels ────────────────────────────────────────────────────────
+@dataclass
+class DifficultyConfig:
+    name: str
+    bot_speed: float
+    bot_cooldown: float
+    predict_time: float
+    color: tuple
+
+DIFFICULTY_EASY = DifficultyConfig(
+    name="EASY",
+    bot_speed=180.0,
+    bot_cooldown=0.25,
+    predict_time=0.20,
+    color=(100, 200, 100)
+)
+
+DIFFICULTY_NORMAL = DifficultyConfig(
+    name="NORMAL",
+    bot_speed=230.0,
+    bot_cooldown=0.14,
+    predict_time=0.35,
+    color=(100, 150, 255)
+)
+
+DIFFICULTY_HARD = DifficultyConfig(
+    name="HARD",
+    bot_speed=280.0,
+    bot_cooldown=0.10,
+    predict_time=0.50,
+    color=(255, 100, 100)
+)
+
+DIFFICULTY_EXPERT = DifficultyConfig(
+    name="EXPERT",
+    bot_speed=320.0,
+    bot_cooldown=0.08,
+    predict_time=0.65,
+    color=(255, 50, 255)
+)
+
+DIFFICULTIES = [DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD, DIFFICULTY_EXPERT]
+
+# ── Color palette (neon cyberpunk theme) ─────────────────────────────────────
+C_BG         = (8, 8, 18)
+C_WALL       = (25, 45, 75)
+C_WALL_EDGE  = (100, 180, 255)
+C_PLAYER     = (0, 255, 150)
+C_PLAYER_DARK= (0, 180, 100)
+C_BOT        = (255, 50, 100)
+C_BOT_DARK   = (180, 20, 60)
+C_PBULLET    = (0, 255, 200)
+C_BBULLET    = (255, 80, 150)
+C_HP_GREEN   = (0, 255, 100)
+C_HP_RED     = (255, 50, 80)
+C_HP_BG      = (15, 15, 35)
+C_TEXT       = (200, 220, 240)
+C_GOLD       = (255, 200, 80)
+C_FLASH_HIT  = (255, 100, 150)
+C_THINKING   = (150, 255, 200)
 
 # ═════════════════════════════════════════════════════════════════════════════
 # MAP SYSTEM
@@ -103,9 +143,9 @@ MAP_SYMMETRICAL = MapConfig(
     ],
     player_spawn=(150, 300),
     bot_spawn=(650, 300),
-    bg_color=(10, 10, 20),
-    wall_color=(40, 40, 80),
-    wall_edge_color=(70, 70, 130),
+    bg_color=(5, 8, 15),
+    wall_color=(30, 60, 120),
+    wall_edge_color=(100, 180, 255),
 )
 
 # ── Map 2: Open Field (fast-paced, minimal walls) ─────────────────────────────
@@ -119,9 +159,9 @@ MAP_OPEN_FIELD = MapConfig(
     ],
     player_spawn=(100, 100),
     bot_spawn=(700, 100),
-    bg_color=(5, 15, 8),
-    wall_color=(60, 100, 60),
-    wall_edge_color=(100, 150, 100),
+    bg_color=(5, 12, 8),
+    wall_color=(60, 140, 80),
+    wall_edge_color=(100, 255, 150),
 )
 
 # ── Map 3: Maze (complex, tactical) ───────────────────────────────────────────
@@ -143,9 +183,9 @@ MAP_MAZE = MapConfig(
     ],
     player_spawn=(120, 100),
     bot_spawn=(680, 500),
-    bg_color=(12, 8, 16),
-    wall_color=(90, 30, 90),
-    wall_edge_color=(150, 80, 150),
+    bg_color=(12, 8, 18),
+    wall_color=(120, 40, 140),
+    wall_edge_color=(200, 100, 255),
 )
 
 # Available maps for rotation
@@ -383,19 +423,22 @@ def draw_walls(surf: pygame.Surface, walls: list[WallRect], map_config: MapConfi
 def draw_entity(surf: pygame.Surface, e: Entity, color: tuple, dark: tuple, label: str):
     if not e.alive:
         return
-    # Draw glow around entity
-    glow_surf = pygame.Surface((PLAYER_R*5, PLAYER_R*5), pygame.SRCALPHA)
-    pygame.draw.circle(glow_surf, (*color, 50), (PLAYER_R*2.5, PLAYER_R*2.5), PLAYER_R*2.2)
-    pygame.draw.circle(glow_surf, (*color, 20), (PLAYER_R*2.5, PLAYER_R*2.5), PLAYER_R*2.8)
-    surf.blit(glow_surf, (int(e.x - PLAYER_R*2.5), int(e.y - PLAYER_R*2.5)))
+    # Draw enhanced glow around entity
+    glow_surf = pygame.Surface((PLAYER_R*6, PLAYER_R*6), pygame.SRCALPHA)
+    pygame.draw.circle(glow_surf, (*color, 80), (PLAYER_R*3, PLAYER_R*3), PLAYER_R*2.5)
+    pygame.draw.circle(glow_surf, (*color, 40), (PLAYER_R*3, PLAYER_R*3), PLAYER_R*3.2)
+    pygame.draw.circle(glow_surf, (*color, 15), (PLAYER_R*3, PLAYER_R*3), PLAYER_R*3.8)
+    surf.blit(glow_surf, (int(e.x - PLAYER_R*3), int(e.y - PLAYER_R*3)))
     # Draw shadow
-    pygame.draw.circle(surf, (0, 0, 0, 80),  (int(e.x), int(e.y) + 2), PLAYER_R + 2)
-    # Draw main body
+    pygame.draw.circle(surf, (0, 0, 0, 100),  (int(e.x), int(e.y) + 3), PLAYER_R + 3)
+    # Draw main body with enhanced outline
     pygame.draw.circle(surf, dark,  (int(e.x), int(e.y)), PLAYER_R + 2)
     pygame.draw.circle(surf, color, (int(e.x), int(e.y)), PLAYER_R)
-    pygame.draw.circle(surf, (255, 255, 255), (int(e.x), int(e.y)), 4)
-    pygame.draw.circle(surf, color, (int(e.x), int(e.y)), PLAYER_R, 1)
-    txt = _FONT_LABEL.render(label, True, (255, 255, 255))
+    pygame.draw.circle(surf, (255, 255, 200), (int(e.x), int(e.y)), 5)
+    pygame.draw.circle(surf, color, (int(e.x), int(e.y)), PLAYER_R, 2)
+    txt = _FONT_LABEL.render(label, True, color)
+    text_shadow = pygame.font.SysFont("monospace", 11, bold=True).render(label, True, (0, 0, 0))
+    surf.blit(text_shadow, (int(e.x) - text_shadow.get_width()//2 + 1, int(e.y) - PLAYER_R - 21))
     surf.blit(txt, (int(e.x) - txt.get_width()//2, int(e.y) - PLAYER_R - 22))
 
 
@@ -405,21 +448,23 @@ _BULLET_GLOW_B: pygame.Surface | None = None
 
 def _init_bullet_surfaces():
     global _BULLET_GLOW_P, _BULLET_GLOW_B
-    sz = BULLET_R * 6
+    sz = BULLET_R * 8
     _BULLET_GLOW_P = pygame.Surface((sz, sz), pygame.SRCALPHA)
-    pygame.draw.circle(_BULLET_GLOW_P, (*C_PBULLET, 90), (sz//2, sz//2), BULLET_R*2.5)
-    pygame.draw.circle(_BULLET_GLOW_P, (*C_PBULLET, 40), (sz//2, sz//2), BULLET_R*4)
+    pygame.draw.circle(_BULLET_GLOW_P, (*C_PBULLET, 120), (sz//2, sz//2), BULLET_R*2.5)
+    pygame.draw.circle(_BULLET_GLOW_P, (*C_PBULLET, 60), (sz//2, sz//2), BULLET_R*3.5)
+    pygame.draw.circle(_BULLET_GLOW_P, (*C_PBULLET, 20), (sz//2, sz//2), BULLET_R*4.5)
     _BULLET_GLOW_B = pygame.Surface((sz, sz), pygame.SRCALPHA)
-    pygame.draw.circle(_BULLET_GLOW_B, (*C_BBULLET, 90), (sz//2, sz//2), BULLET_R*2.5)
-    pygame.draw.circle(_BULLET_GLOW_B, (*C_BBULLET, 40), (sz//2, sz//2), BULLET_R*4)
+    pygame.draw.circle(_BULLET_GLOW_B, (*C_BBULLET, 120), (sz//2, sz//2), BULLET_R*2.5)
+    pygame.draw.circle(_BULLET_GLOW_B, (*C_BBULLET, 60), (sz//2, sz//2), BULLET_R*3.5)
+    pygame.draw.circle(_BULLET_GLOW_B, (*C_BBULLET, 20), (sz//2, sz//2), BULLET_R*4.5)
 
 def draw_bullet(surf: pygame.Surface, b: Bullet):
     color = C_PBULLET if b.owner == "player" else C_BBULLET
     glow  = _BULLET_GLOW_P if b.owner == "player" else _BULLET_GLOW_B
     if glow:
-        surf.blit(glow, (int(b.x) - BULLET_R*3, int(b.y) - BULLET_R*3))
+        surf.blit(glow, (int(b.x) - BULLET_R*4, int(b.y) - BULLET_R*4))
     pygame.draw.circle(surf, color, (int(b.x), int(b.y)), BULLET_R)
-    pygame.draw.circle(surf, (255, 255, 255), (int(b.x), int(b.y)), max(2, BULLET_R - 1))
+    pygame.draw.circle(surf, (255, 255, 220), (int(b.x), int(b.y)), max(2, BULLET_R - 2))
 
 
 def draw_hp_bar(surf: pygame.Surface, x: int, y: int, hp: int, w: int, label: str, color: tuple):
@@ -500,10 +545,10 @@ def draw_hud(surf: pygame.Surface, player: Entity, bot: Entity,
     
     # Glowing panel background with dynamic transparency
     temp_panel_bg = pygame.Surface((224, 124), pygame.SRCALPHA)
-    pygame.draw.rect(temp_panel_bg, (0, 0, 0, int(120 * panel_alpha / 100)), (2, 2, 220, 120), border_radius=5)
-    pygame.draw.rect(temp_panel_bg, (15, 15, 30, int(255 * panel_alpha / 100)), (4, 4, 220, 120), border_radius=4)
-    pygame.draw.rect(temp_panel_bg, (*C_BOT, int(255 * panel_alpha / 100)), (4, 4, 220, 120), 3, border_radius=4)
-    pygame.draw.rect(temp_panel_bg, (100, 60, 200, int(100 * panel_alpha / 100)), (4, 4, 220, 120), 1, border_radius=4)
+    pygame.draw.rect(temp_panel_bg, (0, 0, 0, int(140 * panel_alpha / 100)), (2, 2, 220, 120), border_radius=5)
+    pygame.draw.rect(temp_panel_bg, (15, 10, 30, int(255 * panel_alpha / 100)), (4, 4, 220, 120), border_radius=4)
+    pygame.draw.rect(temp_panel_bg, (*C_PBULLET, int(200 * panel_alpha / 100)), (4, 4, 220, 120), 3, border_radius=4)
+    pygame.draw.rect(temp_panel_bg, (150, 100, 255, int(120 * panel_alpha / 100)), (4, 4, 220, 120), 1, border_radius=4)
     surf.blit(temp_panel_bg, (panel_x - 2, panel_y - 2))
     
     surf.blit(_FONT_HUD.render("▶ AI VECTOR", True, C_BOT), (panel_x+6, panel_y+5))
@@ -536,30 +581,136 @@ def game_over_screen(surf: pygame.Surface, winner: str):
     
     # Draw semi-transparent overlay
     overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 80))
+    overlay.fill((0, 0, 0, 120))
     surf.blit(overlay, (0, 0))
     
-    # Draw glowing background box
+    # Draw glowing background box with enhanced glow
     box_w, box_h = 500, 250
     box_x, box_y = (SCREEN_W - box_w) // 2, (SCREEN_H - box_h) // 2
-    glow = pygame.Surface((box_w + 20, box_h + 20), pygame.SRCALPHA)
-    pygame.draw.rect(glow, (*col, 40), (10, 10, box_w, box_h), border_radius=10)
-    pygame.draw.rect(glow, (*col, 20), (8, 8, box_w+4, box_h+4), border_radius=11)
-    surf.blit(glow, (box_x - 10, box_y - 10))
     
-    pygame.draw.rect(surf, (20, 20, 40), (box_x, box_y, box_w, box_h), border_radius=8)
-    pygame.draw.rect(surf, col, (box_x, box_y, box_w, box_h), 3, border_radius=8)
+    # Multi-layer glow effect
+    for i, alpha in enumerate([20, 30, 40]):
+        glow = pygame.Surface((box_w + 20 + i*4, box_h + 20 + i*4), pygame.SRCALPHA)
+        pygame.draw.rect(glow, (*col, alpha), (10 + i*2, 10 + i*2, box_w - i*4, box_h - i*4), border_radius=10)
+        surf.blit(glow, (box_x - 10 - i*2, box_y - 10 - i*2))
     
-    # Render text with outline effect
+    pygame.draw.rect(surf, (12, 12, 25), (box_x, box_y, box_w, box_h), border_radius=8)
+    pygame.draw.rect(surf, col, (box_x, box_y, box_w, box_h), 4, border_radius=8)
+    pygame.draw.rect(surf, (*col, 100), (box_x, box_y, box_w, box_h), 1, border_radius=8)
+    
+    # Render text with enhanced outline effect
     txt = font_big.render(msg, True, col)
     txt_outline = font_big.render(msg, True, (0, 0, 0))
-    for dx, dy in [(-2,-2), (2,-2), (-2,2), (2,2), (-1,0), (1,0), (0,-1), (0,1)]:
+    for dx, dy in [(-3,-3), (3,-3), (-3,3), (3,3), (-2,-2), (2,-2), (-2,2), (2,2), (-1,0), (1,0), (0,-1), (0,1)]:
         surf.blit(txt_outline, (box_x + (box_w - txt.get_width())//2 + dx, box_y + 50 + dy))
     surf.blit(txt, (box_x + (box_w - txt.get_width())//2, box_y + 50))
     
     sub = font_sm.render("Press R to restart  |  ESC to quit", True, C_TEXT)
     surf.blit(sub, sub.get_rect(center=(SCREEN_W//2, box_y + box_h - 30)))
     pygame.display.flip()
+
+def difficulty_selection_screen(surf: pygame.Surface) -> int:
+    """
+    Display difficulty selection screen.
+    Returns the index of the selected difficulty (0, 1, 2, or 3).
+    """
+    font_title = pygame.font.SysFont("monospace", 56, bold=True)
+    font_label = pygame.font.SysFont("monospace", 20, bold=True)
+    font_hint = pygame.font.SysFont("monospace", 16)
+    
+    selected = 1  # default to NORMAL
+    selecting = True
+    
+    while selecting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return 1  # default to normal if quit
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return 1
+                elif event.key == pygame.K_1:
+                    selected = 0
+                    selecting = False
+                elif event.key == pygame.K_2:
+                    selected = 1
+                    selecting = False
+                elif event.key == pygame.K_3:
+                    selected = 2
+                    selecting = False
+                elif event.key == pygame.K_4:
+                    selected = 3
+                    selecting = False
+        
+        surf.fill(C_BG)
+        
+        # Title with glow
+        title = font_title.render("SELECT DIFFICULTY", True, C_GOLD)
+        title_glow = pygame.Surface((title.get_width() + 20, title.get_height() + 10), pygame.SRCALPHA)
+        pygame.draw.rect(title_glow, (*C_GOLD, 30), (10, 5, title.get_width(), title.get_height()), border_radius=4)
+        surf.blit(title_glow, (SCREEN_W//2 - title.get_width()//2 - 10, 30))
+        surf.blit(title, (SCREEN_W//2 - title.get_width()//2, 35))
+        
+        # Draw 4 difficulty options
+        spacing = 190
+        start_x = 20
+        
+        for i, diff in enumerate(DIFFICULTIES):
+            box_x = start_x + i * spacing
+            box_y = 140
+            box_w, box_h = 170, 280
+            
+            # Highlight selected
+            is_selected = i == selected
+            border_col = diff.color if is_selected else (60, 60, 80)
+            border_width = 4 if is_selected else 2
+            
+            # Glowing glow for selected
+            if is_selected:
+                glow = pygame.Surface((box_w + 12, box_h + 12), pygame.SRCALPHA)
+                pygame.draw.rect(glow, (*diff.color, 80), (6, 6, box_w, box_h), border_radius=6)
+                pygame.draw.rect(glow, (*diff.color, 30), (4, 4, box_w+4, box_h+4), border_radius=7)
+                surf.blit(glow, (box_x - 6, box_y - 6))
+            
+            # Box background
+            pygame.draw.rect(surf, (15, 15, 35), (box_x, box_y, box_w, box_h), border_radius=4)
+            pygame.draw.rect(surf, border_col, (box_x, box_y, box_w, box_h), border_width, border_radius=4)
+            
+            # Difficulty name
+            name_txt = font_label.render(diff.name, True, diff.color)
+            if is_selected:
+                for dx, dy in [(-1,-1), (1,-1), (-1,1), (1,1)]:
+                    name_outline = font_label.render(diff.name, True, (0, 0, 0))
+                    surf.blit(name_outline, (box_x + (box_w - name_txt.get_width())//2 + dx, box_y + 20 + dy))
+            surf.blit(name_txt, (box_x + (box_w - name_txt.get_width())//2, box_y + 20))
+            
+            # Stats
+            stats = [
+                f"Speed: {diff.bot_speed:.0f}",
+                f"Cooldown: {diff.bot_cooldown:.2f}s",
+                f"Predict: {diff.predict_time:.2f}s"
+            ]
+            
+            y_offset = box_y + 70
+            for stat in stats:
+                stat_txt = pygame.font.SysFont("monospace", 13).render(stat, True, (150, 150, 180))
+                surf.blit(stat_txt, (box_x + 10, y_offset))
+                y_offset += 30
+            
+            # Key hint
+            key_txt = font_hint.render(f"Press [{i+1}]", True, border_col)
+            surf.blit(key_txt, (box_x + (box_w - key_txt.get_width())//2, box_y + box_h - 35))
+        
+        # Bottom instruction
+        hint = pygame.font.SysFont("monospace", 16).render(
+            "Press 1, 2, 3, or 4 to select difficulty  |  ESC to default",
+            True, C_GOLD
+        )
+        surf.blit(hint, (SCREEN_W//2 - hint.get_width()//2, SCREEN_H - 40))
+        
+        pygame.display.flip()
+        pygame.time.wait(16)
+    
+    return selected
 
 def map_selection_screen(surf: pygame.Surface) -> int:
     """
@@ -734,11 +885,15 @@ def map_intro_screen(surf: pygame.Surface, map_config: MapConfig, duration: floa
     return True
 def build_ai_game_state(player: Entity, bot: Entity,
                         bullets: list[Bullet],
-                        walls: list[WallRect]) -> dict:
+                        walls: list[WallRect],
+                        difficulty: DifficultyConfig = None) -> dict:
     """Serialise the dynamic game situation for the Claude pipeline."""
+    if difficulty is None:
+        difficulty = DIFFICULTY_NORMAL
+    
     # Predict player pos PREDICT_T seconds ahead
-    pred_px = player.x + player.vx * PREDICT_T
-    pred_py = player.y + player.vy * PREDICT_T
+    pred_px = player.x + player.vx * difficulty.predict_time
+    pred_py = player.y + player.vy * difficulty.predict_time
     pred_px = max(0, min(SCREEN_W,  pred_px))
     pred_py = max(0, min(SCREEN_H, pred_py))
 
@@ -785,6 +940,10 @@ def run_game(shared_state: GameState, stop_event: threading.Event,
     pygame.display.set_caption(TITLE)
     clock = pygame.time.Clock()
     
+    # ── Difficulty selection screen ────────────────────────────────────────────
+    difficulty_index = difficulty_selection_screen(surf)
+    difficulty = DIFFICULTIES[difficulty_index]
+    
     # ── Map selection screen ───────────────────────────────────────────────────
     current_map_index = map_selection_screen(surf)
     current_map = MAPS[current_map_index]
@@ -795,9 +954,9 @@ def run_game(shared_state: GameState, stop_event: threading.Event,
         shared_state.latest_thinking = text
     
     ai_thread = AIThread(shared_state, stop_event, on_thinking,
-                         player_memory=player_memory)
+                         player_memory=player_memory, difficulty=difficulty)
     ai_thread.start()
-    print(f"[Game] AI pipeline thread started. Playing on {current_map.name}")
+    print(f"[Game] AI pipeline thread started. Playing on {current_map.name} ({difficulty.name})")
 
     thinking_lines: list[str] = []
 
@@ -919,16 +1078,16 @@ def run_game(shared_state: GameState, stop_event: threading.Event,
         ]
 
         rvx, rvy, rshoot = process_reflex(
-            bot_reflex, player_bullet_infos, walls, BOT_SPEED,
+            bot_reflex, player_bullet_infos, walls, difficulty.bot_speed,
             SCREEN_W, SCREEN_H, dt
         )
         bot.vx = rvx
         bot.vy = rvy
 
         if rshoot and bot.can_shoot():
-            pred_px = player.x + player.vx * PREDICT_T
-            pred_py = player.y + player.vy * PREDICT_T
-            b = bot.fire(pred_px, pred_py, "bot", cooldown=BOT_SHOOT_COOLDOWN)
+            pred_px = player.x + player.vx * difficulty.predict_time
+            pred_py = player.y + player.vy * difficulty.predict_time
+            b = bot.fire(pred_px, pred_py, "bot", cooldown=difficulty.bot_cooldown)
             if b:
                 bullets.append(b)
                 particles += spawn_muzzle_flash(bot.x, bot.y, b.vx, b.vy, C_BBULLET)
@@ -996,7 +1155,7 @@ def run_game(shared_state: GameState, stop_event: threading.Event,
         telemetry_timer += dt
         if telemetry_timer >= 0.25:
             telemetry_timer = 0.0
-            shared_state.update(build_ai_game_state(player, bot, bullets, walls))
+            shared_state.update(build_ai_game_state(player, bot, bullets, walls, difficulty))
 
         # ── Render ────────────────────────────────────────────────────────────
         surf.fill(current_map.bg_color)
@@ -1045,12 +1204,13 @@ class AIThread(threading.Thread):
     data only via GameState's thread-safe locks.
     """
     def __init__(self, shared_state: GameState, stop_event: threading.Event,
-                 on_thinking, player_memory: str = ""):
+                 on_thinking, player_memory: str = "", difficulty: DifficultyConfig = None):
         super().__init__(daemon=True)
         self.shared_state  = shared_state
         self.stop_event    = stop_event
         self.on_thinking   = on_thinking
         self.player_memory = player_memory
+        self.difficulty    = difficulty or DIFFICULTY_NORMAL
 
     def run(self):
         async def _pipeline():
