@@ -1,0 +1,29 @@
+
+════════════════════════════════════════════════════════════
+SESSION: 2026-02-28 12:29  |  Result: AI won
+- Relocates frequently across map edges; avoids center positioning, prefers perimeter movement.
+- Continuous spraying with minimal bursting; shoots while moving at predicted intercepts.
+- Highly reactive dodging perpendicular to incoming threats; anticipates bullet trajectories well.
+- Gravitates toward map corners and walls (north, west, south edges consistently).
+- Predictable diagonal/linear movement patterns allow successful interception; struggles against aggressive gap-closing.
+════════════════════════════════════════════════════════════
+SESSION: 2026-02-28 12:31  |  Result: AI won
+- Stationary camping initially, then shifted to high-speed diagonal/directional sprints unpredictably
+- Continuous spray fire with minimal precision; relied on volume over accuracy
+- No visible dodging; maintained committed movement patterns despite incoming fire
+- Started map edges/periphery, moved toward center as engagement progressed
+- Predictable velocity made interception easy; failed to vary speed or direction
+════════════════════════════════════════════════════════════
+SESSION: 2026-02-28 12:36  |  Result: AI won
+- Constant movement across map with predictable diagonal/linear trajectories; minimal camping
+- Continuous spray shooting; no burst control or patient aim discipline observed
+- Minimal reactive dodging; occasional late perpendicular evasion but generally stationary targets
+- Favors map edges and corners; trapped near walls multiple times during pursuit
+- Predictable pathing allows pre-aiming; slow repositioning when caught at map extremities
+════════════════════════════════════════════════════════════
+SESSION: 2026-02-28 12:40  |  Result: AI won
+- Aggressive rushing and constant forward momentum toward opponent; minimal camping or defensive positioning.
+- Continuous spray fire at close range; no burst control or patient aim discipline observed.
+- Predictable linear movement patterns; AI successfully predicted intercept positions repeatedly throughout match.
+- Favours map centre and diagonal movement; occasionally trapped near edges during retreats.
+- Telegraphed trajectories make interception trivial; lacks erratic strafing to break AI's prediction accuracy.

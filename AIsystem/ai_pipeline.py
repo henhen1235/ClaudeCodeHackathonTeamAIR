@@ -10,7 +10,10 @@ import os
 import re
 import time
 from typing import Callable
+from dotenv import load_dotenv
 
+# Load .env from the project root (one level above AIsystem/)
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 PROMPT_TEMPLATE = """You are an ELITE, RUTHLESS combat AI in a 2D top-down shooter. Your only goal is to DESTROY the human player as fast as possible. You are faster, smarter, and more precise than any human.
@@ -21,18 +24,22 @@ PHYSICS:
 - You output a direction vector [dx, dy] in range [-1.0, 1.0]. Reflex layer drives movement each frame.
 - walls array = [dist_North, dist_East, dist_South, dist_West]. Avoid if < {MIN_WALL_DISTANCE}.
 
+HISTORICAL PLAYER PROFILE (from previous sessions — exploit these weaknesses NOW):
+{PLAYER_MEMORY}
+
 AGGRESSION DOCTRINE — follow in priority order:
 1. DODGE FIRST: If `threats` has bullets close (<200px), move PERPENDICULAR to the bullet trajectory. Calculate the bullet's travel direction and strafe across it. Never run away — dodge sideways so you can keep shooting.
 2. CLOSE THE GAP: After dodging, immediately move toward `enemy.predicted_pos`. Compute the vector from your pos to `enemy.predicted_pos` and set [dx, dy] to that direction. Stay within 250px of the enemy so bullets connect quickly.
 3. SHOOT ALWAYS: Set "shoot": true in EVERY response UNLESS you literally cannot shoot (bot.ready=false). Even while dodging, keep shooting. Spray bullets toward the predicted position.
 4. STRAFE: Never stand still. If no threats and enemy is directly horizontal, add a vertical component (±0.4) to strafe unpredictably.
 5. PUNISH LOW HP: If enemy.hp is dropping, press the attack even harder — close to <150px and spam shoot.
+6. EXPLOIT HISTORY: Cross-reference the HISTORICAL PLAYER PROFILE above. If they camp — rush. If they strafe right — pre-aim left. If they spray — wait behind cover then punish.
 
 DECISION RULES:
 - `shoot` should be `true` in at least 90%% of your responses.
 - `dx`/`dy` magnitude should be near 1.0 — always move at full speed.
 - If bot.hp < 40, dodge aggressively but NEVER stop shooting.
-- Use the `Style` field (past observations) to counter the human's pattern: if they strafe left, lead shots right; if they camp, rush them.
+- Use the `Style` field (this-session observations) plus the HISTORICAL PROFILE above to counter the human's pattern.
 
 INPUT:
 {{
@@ -40,7 +47,7 @@ INPUT:
   "enemy": {{"pos": [x,y], "vel": [vx,vy], "predicted_pos": [px,py]}},
   "threats": [{{"p": [x,y], "v": [vx,vy]}}],
   "walls": [N, E, S, W],
-  "Style": "accumulated player pattern"
+  "Style": "this-session accumulated observations"
 }}
 
 OUTPUT: One <thinking> sentence (≤15 words) then ONE JSON object. Nothing else after the JSON.
@@ -54,12 +61,15 @@ Game state:
 
 
 def _build_prompt(game_state: dict, map_width: int, map_height: int,
-                  latency_ms: int, min_wall_distance: int) -> str:
+                  latency_ms: int, min_wall_distance: int,
+                  player_memory: str = "") -> str:
+    from AIsystem.memory import format_memory_for_prompt
     return PROMPT_TEMPLATE.format(
         MAP_WIDTH=map_width,
         MAP_HEIGHT=map_height,
         LATENCY_MS=latency_ms,
         MIN_WALL_DISTANCE=min_wall_distance,
+        PLAYER_MEMORY=format_memory_for_prompt(player_memory),
         GAME_STATE_JSON=json.dumps(game_state, indent=2),
     )
 
@@ -121,25 +131,27 @@ async def run_pipeline(
     max_tokens: int = 300,
     stop_event: asyncio.Event | None = None,
     on_thinking: Callable[[str], None] | None = None,
+    player_memory: str = "",
 ) -> None:
     """
     Continuously fire parallel Claude instances with live game state.
-    Mirrors the exact structure of ai_pipeline_test.py — asyncio.run() compatible.
 
     Args:
         get_game_state:  Called each cycle; returns the current game state dict.
         on_ai_decision:  Called with each parsed {dx, dy, shoot} decision.
         stop_event:      asyncio.Event; when set, pipeline shuts down cleanly.
         on_thinking:     Optional callback called with the raw thinking text each tick.
+        player_memory:   Pre-loaded cross-session player profile string.
     """
     style_memory: list[str] = []  # grows with each thinking block; shared across instances
 
     async def call_claude(instance_id: int, tick: int) -> None:
         game_state = get_game_state()
-        # Inject accumulated style analysis into the Style field
+        # Inject accumulated this-session style analysis into the Style field
         if style_memory:
             game_state = {**game_state, "Style": style_memory[-1]}
-        prompt = _build_prompt(game_state, map_width, map_height, latency_ms, min_wall_distance)
+        prompt = _build_prompt(game_state, map_width, map_height,
+                               latency_ms, min_wall_distance, player_memory)
 
         client = anthropic.AsyncAnthropic(api_key=API_KEY)
         t_start = time.perf_counter()
@@ -182,7 +194,7 @@ async def run_pipeline(
         while True:
             if stop_event and stop_event.is_set():
                 break
-            instance_id = (tick % num_instances) + 1
+            instance_id = tick + 1
             task = asyncio.create_task(call_claude(instance_id, tick))
             tasks.append(task)
             tasks = [t for t in tasks if not t.done()]
